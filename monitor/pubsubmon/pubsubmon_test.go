@@ -204,18 +204,23 @@ func TestPeerMonitorPublishMetric(t *testing.T) {
 	pm2, shutdown2 := testPeerMonitor(t)
 	defer shutdown2()
 
-	pm.host.Connect(
+	time.Sleep(200 * time.Millisecond)
+
+	err := pm.host.Connect(
 		context.Background(),
 		peerstore.PeerInfo{
 			ID:    pm2.host.ID(),
 			Addrs: pm2.host.Addrs(),
 		},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mf := newMetricFactory()
 
 	metric := mf.newMetric("test", test.TestPeerID1)
-	err := pm.PublishMetric(metric)
+	err = pm.PublishMetric(metric)
 	if err != nil {
 		t.Fatal(err)
 	}
