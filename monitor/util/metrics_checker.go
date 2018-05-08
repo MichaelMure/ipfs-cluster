@@ -1,63 +1,49 @@
 package util
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/ipfs/ipfs-cluster/api"
 
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
+// AlertChannelCap specifies how much buffer the alerts channel has.
+var AlertChannelCap = 256
+
 // ErrAlertChannelFull is returned if the alert channel is full.
 var ErrAlertChannelFull = errors.New("alert channel is full")
-
-// Metrics maps metric names to PeerMetrics
-type Metrics map[string]PeerMetrics
-
-// PeerMetrics maps a peer IDs to a metric window.
-type PeerMetrics map[peer.ID]*MetricsWindow
 
 // MetricsChecker provides utilities to find expired metrics
 // for a given peerset and send alerts if it proceeds to do so.
 type MetricsChecker struct {
 	alertCh chan api.Alert
-	metrics Metrics
+	metrics *MetricStore
 }
 
 // NewMetricsChecker creates a MetricsChecker using the given
-// Metrics and alert channel. MetricsChecker assumes non-concurrent
-// access to the Metrics map. It's the caller's responsability
-// to it lock otherwise while calling CheckMetrics().
-func NewMetricsChecker(metrics Metrics, alertCh chan api.Alert) *MetricsChecker {
+// MetricsStore.
+func NewMetricsChecker(metrics *MetricStore) *MetricsChecker {
 	return &MetricsChecker{
-		alertCh: alertCh,
+		alertCh: make(chan api.Alert, AlertChannelCap),
 		metrics: metrics,
 	}
 }
 
-// CheckMetrics triggers Check() on all metrics known for the given peerset.
-func (mc *MetricsChecker) CheckMetrics(peers []peer.ID) {
-	for name, peerMetrics := range mc.metrics {
-		for _, pid := range peers {
-			window, ok := peerMetrics[pid]
-			if !ok { // no metrics for this peer
-				continue
+// CheckMetrics will trigger alerts for expired metrics belonging to the
+// given peerset.
+func (mc *MetricsChecker) CheckMetrics(peers []peer.ID) error {
+	for _, peer := range peers {
+		for _, metric := range mc.metrics.PeerMetrics(peer) {
+			if metric.Valid && metric.Expired() {
+				err := mc.alert(metric.Peer, metric.Name)
+				if err != nil {
+					return err
+				}
 			}
-			mc.Check(pid, name, window)
 		}
-	}
-}
-
-// Check sends an alert on the alert channel for the given peer and metric name
-// if the last metric in the window was valid but expired.
-func (mc *MetricsChecker) Check(pid peer.ID, metricName string, mw *MetricsWindow) error {
-	last, err := mw.Latest()
-	if err != nil { // no metrics
-		return nil
-	}
-
-	if last.Valid && last.Expired() {
-		return mc.alert(pid, metricName)
 	}
 	return nil
 }
@@ -73,4 +59,28 @@ func (mc *MetricsChecker) alert(pid peer.ID, metricName string) error {
 		return ErrAlertChannelFull
 	}
 	return nil
+}
+
+// Alerts returns a channel which gets notified by CheckMetrics.
+func (mc *MetricsChecker) Alerts() <-chan api.Alert {
+	return mc.alertCh
+}
+
+// Watch will trigger regular CheckMetrics on the given interval. It will call
+// peersF to obtain a peerset. It can be stopped by cancelling the context.
+func (mc *MetricsChecker) Watch(ctx context.Context, peersF func() ([]peer.ID, error), interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-ticker.C:
+			peers, err := peersF()
+			if err != nil {
+				continue
+			}
+			mc.CheckMetrics(peers)
+		case <-ctx.Done():
+			ticker.Stop()
+			return
+		}
+	}
 }

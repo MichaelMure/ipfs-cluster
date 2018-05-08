@@ -8,6 +8,9 @@ import (
 	"github.com/ipfs/ipfs-cluster/api"
 )
 
+// DefaultWindowCap sets the amount of metrics to store per peer.
+var DefaultWindowCap = 25
+
 // ErrNoMetrics is returned when there are no metrics in a MetricsWindow.
 var ErrNoMetrics = errors.New("no metrics have been added to this window")
 
@@ -24,6 +27,10 @@ type MetricsWindow struct {
 // window capacity. The safe indicates whether we use a lock
 // for concurrent operations.
 func NewMetricsWindow(windowCap int, safe bool) *MetricsWindow {
+	if windowCap <= 0 {
+		panic("invalid windowCap")
+	}
+
 	w := make([]api.Metric, 0, windowCap)
 	return &MetricsWindow{
 		last:   0,

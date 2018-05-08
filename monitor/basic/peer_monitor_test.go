@@ -107,7 +107,7 @@ func TestLogMetricConcurrent(t *testing.T) {
 	last := time.Now().Add(-500 * time.Millisecond)
 
 	for i := 0; i <= 20; i++ {
-		lastMtrcs := pm.LastMetrics("test")
+		lastMtrcs := pm.LatestMetrics("test")
 
 		if len(lastMtrcs) != 1 {
 			t.Error("no valid metrics", len(lastMtrcs), i)
@@ -146,13 +146,13 @@ func TestPeerMonitorLogMetric(t *testing.T) {
 	pm.LogMetric(mf.newMetric("test2", test.TestPeerID3))
 	pm.LogMetric(mf.newMetric("test2", test.TestPeerID3))
 
-	lastMetrics := pm.LastMetrics("testbad")
+	lastMetrics := pm.LatestMetrics("testbad")
 	if len(lastMetrics) != 0 {
 		t.Logf("%+v", lastMetrics)
 		t.Error("metrics should be empty")
 	}
 
-	lastMetrics = pm.LastMetrics("test")
+	lastMetrics = pm.LatestMetrics("test")
 	if len(lastMetrics) != 3 {
 		t.Error("metrics should correspond to 3 hosts")
 	}
@@ -176,7 +176,7 @@ func TestPeerMonitorLogMetric(t *testing.T) {
 		}
 	}
 
-	lastMetrics = pm.LastMetrics("test2")
+	lastMetrics = pm.LatestMetrics("test2")
 	if len(lastMetrics) != 1 {
 		t.Fatal("should only be one metric")
 	}
