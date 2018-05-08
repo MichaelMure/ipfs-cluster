@@ -217,6 +217,8 @@ func TestPeerMonitorPublishMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	time.Sleep(200 * time.Millisecond)
+
 	mf := newMetricFactory()
 
 	metric := mf.newMetric("test", test.TestPeerID1)
