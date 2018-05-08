@@ -1,4 +1,4 @@
-package util
+package metrics
 
 import (
 	"sync"
@@ -8,24 +8,24 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
-// PeerMetrics maps a peer IDs to a metric window.
-type PeerMetrics map[peer.ID]*MetricsWindow
+// PeerMetrics maps a peer IDs to a metrics window.
+type PeerMetrics map[peer.ID]*Window
 
-// MetricStore can be used to store and access metrics.
-type MetricStore struct {
+// Store can be used to store and access metrics.
+type Store struct {
 	mux    sync.RWMutex
 	byName map[string]PeerMetrics
 }
 
-// NewMetricStore can be used to create a MetricStore.
-func NewMetricStore() *MetricStore {
-	return &MetricStore{
+// NewStore can be used to create a Store.
+func NewStore() *Store {
+	return &Store{
 		byName: make(map[string]PeerMetrics),
 	}
 }
 
 // Add inserts a new metric in Metrics.
-func (mtrs *MetricStore) Add(m api.Metric) {
+func (mtrs *Store) Add(m api.Metric) {
 	mtrs.mux.Lock()
 	defer mtrs.mux.Unlock()
 
@@ -39,8 +39,8 @@ func (mtrs *MetricStore) Add(m api.Metric) {
 	window, ok := mbyp[peer]
 	if !ok {
 		// We always lock the outer map, so we can use unsafe
-		// MetricsWindow.
-		window = NewMetricsWindow(DefaultWindowCap, false)
+		// Window.
+		window = NewWindow(DefaultWindowCap, false)
 		mbyp[peer] = window
 	}
 
@@ -49,7 +49,7 @@ func (mtrs *MetricStore) Add(m api.Metric) {
 
 // Latest returns all the last known valid metrics. A metric is valid
 // if it has not expired.
-func (mtrs *MetricStore) Latest(name string) []api.Metric {
+func (mtrs *Store) Latest(name string) []api.Metric {
 	mtrs.mux.RLock()
 	defer mtrs.mux.RUnlock()
 
@@ -71,7 +71,7 @@ func (mtrs *MetricStore) Latest(name string) []api.Metric {
 
 // PeerMetrics returns the latest metrics for a given peer ID for
 // all known metrics types. It may return expired metrics.
-func (mtrs *MetricStore) PeerMetrics(peer peer.ID) []api.Metric {
+func (mtrs *Store) PeerMetrics(peer peer.ID) []api.Metric {
 	mtrs.mux.RLock()
 	defer mtrs.mux.RUnlock()
 

@@ -146,18 +146,18 @@ func TestPeerMonitorLogMetric(t *testing.T) {
 	pm.LogMetric(mf.newMetric("test2", test.TestPeerID3))
 	pm.LogMetric(mf.newMetric("test2", test.TestPeerID3))
 
-	lastMetrics := pm.LatestMetrics("testbad")
-	if len(lastMetrics) != 0 {
-		t.Logf("%+v", lastMetrics)
+	latestMetrics := pm.LatestMetrics("testbad")
+	if len(latestMetrics) != 0 {
+		t.Logf("%+v", latestMetrics)
 		t.Error("metrics should be empty")
 	}
 
-	lastMetrics = pm.LatestMetrics("test")
-	if len(lastMetrics) != 3 {
+	latestMetrics = pm.LatestMetrics("test")
+	if len(latestMetrics) != 3 {
 		t.Error("metrics should correspond to 3 hosts")
 	}
 
-	for _, v := range lastMetrics {
+	for _, v := range latestMetrics {
 		switch v.Peer {
 		case test.TestPeerID1:
 			if v.Value != "0" {
@@ -176,11 +176,11 @@ func TestPeerMonitorLogMetric(t *testing.T) {
 		}
 	}
 
-	lastMetrics = pm.LatestMetrics("test2")
-	if len(lastMetrics) != 1 {
+	latestMetrics = pm.LatestMetrics("test2")
+	if len(latestMetrics) != 1 {
 		t.Fatal("should only be one metric")
 	}
-	if lastMetrics[0].Value != fmt.Sprintf("%d", mf.count()-1) {
+	if latestMetrics[0].Value != fmt.Sprintf("%d", mf.count()-1) {
 		t.Error("metric is not last")
 	}
 }

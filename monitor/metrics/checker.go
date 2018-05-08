@@ -1,4 +1,4 @@
-package util
+package metrics
 
 import (
 	"context"
@@ -16,25 +16,25 @@ var AlertChannelCap = 256
 // ErrAlertChannelFull is returned if the alert channel is full.
 var ErrAlertChannelFull = errors.New("alert channel is full")
 
-// MetricsChecker provides utilities to find expired metrics
+// Checker provides utilities to find expired metrics
 // for a given peerset and send alerts if it proceeds to do so.
-type MetricsChecker struct {
+type Checker struct {
 	alertCh chan api.Alert
-	metrics *MetricStore
+	metrics *Store
 }
 
-// NewMetricsChecker creates a MetricsChecker using the given
+// NewChecker creates a Checker using the given
 // MetricsStore.
-func NewMetricsChecker(metrics *MetricStore) *MetricsChecker {
-	return &MetricsChecker{
+func NewChecker(metrics *Store) *Checker {
+	return &Checker{
 		alertCh: make(chan api.Alert, AlertChannelCap),
 		metrics: metrics,
 	}
 }
 
-// CheckMetrics will trigger alerts for expired metrics belonging to the
+// CheckPeers will trigger alerts for expired metrics belonging to the
 // given peerset.
-func (mc *MetricsChecker) CheckMetrics(peers []peer.ID) error {
+func (mc *Checker) CheckPeers(peers []peer.ID) error {
 	for _, peer := range peers {
 		for _, metric := range mc.metrics.PeerMetrics(peer) {
 			if metric.Valid && metric.Expired() {
@@ -48,7 +48,7 @@ func (mc *MetricsChecker) CheckMetrics(peers []peer.ID) error {
 	return nil
 }
 
-func (mc *MetricsChecker) alert(pid peer.ID, metricName string) error {
+func (mc *Checker) alert(pid peer.ID, metricName string) error {
 	alrt := api.Alert{
 		Peer:       pid,
 		MetricName: metricName,
@@ -61,14 +61,15 @@ func (mc *MetricsChecker) alert(pid peer.ID, metricName string) error {
 	return nil
 }
 
-// Alerts returns a channel which gets notified by CheckMetrics.
-func (mc *MetricsChecker) Alerts() <-chan api.Alert {
+// Alerts returns a channel which gets notified by CheckPeers.
+func (mc *Checker) Alerts() <-chan api.Alert {
 	return mc.alertCh
 }
 
-// Watch will trigger regular CheckMetrics on the given interval. It will call
+// Watch will trigger regular CheckPeers on the given interval. It will call
 // peersF to obtain a peerset. It can be stopped by cancelling the context.
-func (mc *MetricsChecker) Watch(ctx context.Context, peersF func() ([]peer.ID, error), interval time.Duration) {
+// Usually you want to launch this in a goroutine.
+func (mc *Checker) Watch(ctx context.Context, peersF func() ([]peer.ID, error), interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	for {
 		select {
@@ -77,7 +78,7 @@ func (mc *MetricsChecker) Watch(ctx context.Context, peersF func() ([]peer.ID, e
 			if err != nil {
 				continue
 			}
-			mc.CheckMetrics(peers)
+			mc.CheckPeers(peers)
 		case <-ctx.Done():
 			ticker.Stop()
 			return

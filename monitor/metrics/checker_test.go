@@ -1,4 +1,4 @@
-package util
+package metrics
 
 import (
 	"context"
@@ -11,10 +11,9 @@ import (
 	"github.com/ipfs/ipfs-cluster/test"
 )
 
-func TestMetricsChecker(t *testing.T) {
-	metrics := NewMetricStore()
-
-	checker := NewMetricsChecker(metrics)
+func TestChecker(t *testing.T) {
+	metrics := NewStore()
+	checker := NewChecker(metrics)
 
 	metr := api.Metric{
 		Name:  "test",
@@ -26,7 +25,7 @@ func TestMetricsChecker(t *testing.T) {
 
 	metrics.Add(metr)
 
-	checker.CheckMetrics([]peer.ID{test.TestPeerID1})
+	checker.CheckPeers([]peer.ID{test.TestPeerID1})
 	select {
 	case <-checker.Alerts():
 		t.Error("there should not be an alert yet")
@@ -34,7 +33,7 @@ func TestMetricsChecker(t *testing.T) {
 	}
 
 	time.Sleep(3 * time.Second)
-	err := checker.CheckMetrics([]peer.ID{test.TestPeerID1})
+	err := checker.CheckPeers([]peer.ID{test.TestPeerID1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +44,7 @@ func TestMetricsChecker(t *testing.T) {
 		t.Error("an alert should have been triggered")
 	}
 
-	checker.CheckMetrics([]peer.ID{test.TestPeerID2})
+	checker.CheckPeers([]peer.ID{test.TestPeerID2})
 	select {
 	case <-checker.Alerts():
 		t.Error("there should not be alerts for different peer")
@@ -53,13 +52,12 @@ func TestMetricsChecker(t *testing.T) {
 	}
 }
 
-func TestMetricsCheckerWatch(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func TestCheckerWatch(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	metrics := NewMetricStore()
-
-	checker := NewMetricsChecker(metrics)
+	metrics := NewStore()
+	checker := NewChecker(metrics)
 
 	metr := api.Metric{
 		Name:  "test",
@@ -67,14 +65,14 @@ func TestMetricsCheckerWatch(t *testing.T) {
 		Value: "1",
 		Valid: true,
 	}
-	metr.SetTTL(200 * time.Millisecond)
+	metr.SetTTL(100 * time.Millisecond)
 	metrics.Add(metr)
 
 	peersF := func() ([]peer.ID, error) {
 		return []peer.ID{test.TestPeerID1}, nil
 	}
 
-	checker.Watch(ctx, peersF, 100*time.Millisecond)
+	go checker.Watch(ctx, peersF, 200*time.Millisecond)
 
 	select {
 	case a := <-checker.Alerts():

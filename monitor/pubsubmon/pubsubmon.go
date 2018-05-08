@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/ipfs/ipfs-cluster/api"
-	"github.com/ipfs/ipfs-cluster/monitor/util"
+	"github.com/ipfs/ipfs-cluster/monitor/metrics"
 
 	rpc "github.com/hsanjuan/go-libp2p-gorpc"
 	logging "github.com/ipfs/go-log"
@@ -21,7 +21,7 @@ import (
 var logger = logging.Logger("monitor")
 
 // PubsubTopic specifies the topic used to publish Cluster metrics.
-var PubsubTopic = "pubsubmon"
+var PubsubTopic = "monitor.metrics"
 
 var msgpackHandle = msgpack.DefaultMsgpackHandle()
 
@@ -37,8 +37,8 @@ type Monitor struct {
 	pubsub       *floodsub.PubSub
 	subscription *floodsub.Subscription
 
-	metrics *util.MetricStore
-	checker *util.MetricsChecker
+	metrics *metrics.Store
+	checker *metrics.Checker
 
 	config *Config
 
@@ -47,10 +47,7 @@ type Monitor struct {
 	wg           sync.WaitGroup
 }
 
-// New creates a new monitor. It receives the window capacity
-// (how many metrics to keep for each peer and type of metric) and the
-// monitoringInterval (interval between the checks that produce alerts)
-// as parameters
+// New creates a new PubSub monitor, using the given host and config.
 func New(h host.Host, cfg *Config) (*Monitor, error) {
 	err := cfg.Validate()
 	if err != nil {
@@ -59,8 +56,8 @@ func New(h host.Host, cfg *Config) (*Monitor, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	metrics := util.NewMetricStore()
-	checker := util.NewMetricsChecker(metrics)
+	mtrs := metrics.NewStore()
+	checker := metrics.NewChecker(mtrs)
 
 	pubsub, err := floodsub.NewFloodSub(ctx, h)
 	if err != nil {
@@ -83,7 +80,7 @@ func New(h host.Host, cfg *Config) (*Monitor, error) {
 		pubsub:       pubsub,
 		subscription: subscription,
 
-		metrics: metrics,
+		metrics: mtrs,
 		checker: checker,
 		config:  cfg,
 	}
@@ -157,8 +154,6 @@ func (mon *Monitor) Shutdown() error {
 	logger.Info("stopping Monitor")
 	close(mon.rpcReady)
 
-	// not necessary as this just removes subscription
-	// mon.subscription.Cancel()
 	mon.cancel()
 
 	mon.wg.Wait()
@@ -206,7 +201,6 @@ func (mon *Monitor) PublishMetric(m api.Metric) error {
 
 // getPeers gets the current list of peers from the consensus component
 func (mon *Monitor) getPeers() ([]peer.ID, error) {
-	// Ger current list of peers
 	var peers []peer.ID
 	err := mon.rpcClient.Call(
 		"",
@@ -232,7 +226,7 @@ func (mon *Monitor) LatestMetrics(name string) []api.Metric {
 		return []api.Metric{}
 	}
 
-	return util.PeersetFilter(latest, peers)
+	return metrics.PeersetFilter(latest, peers)
 }
 
 // Alerts returns a channel on which alerts are sent when the
